@@ -21,7 +21,7 @@ Output ONLY a JSON object matching this schema (no markdown, no commentary):
   "rank": "SPC",
   "ssn": "XXX-XX-XXXX",
   "org_station": "Unit, station, phone",
-  "leave_address": "address during leave",
+  "leave_address": "full address during leave",
   "leave_type": "ORDINARY",
   "days_requested": 10,
   "days_accrued": 15.0,
@@ -35,6 +35,7 @@ Rules:
 - leave_type must be one of: ORDINARY, EMERGENCY, PERMISSIVE_TDY, OTHER. Default ORDINARY.
 - If days_requested is given but date_to is not, set date_to = date_from + (days_requested - 1).
 - Convert names like "John Smith" to "SMITH, JOHN".
+- leave_address: PRESERVE the FULL address as written. Include street number, street name, city, state, ZIP, and phone if mentioned. NEVER shorten to just a city name. If the soldier says "1234 University Ave, Berkeley CA 94704", the leave_address must contain all of that, not just "Berkeley".
 - Use realistic placeholders if fields aren't specified."""
 
 

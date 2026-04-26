@@ -19,7 +19,6 @@ from rich.markdown import Markdown
 
 from src.rag.retriever import Retriever
 from src.rag.generator import answer as generate_answer
-
 ROOT = Path(__file__).resolve().parent
 from rich.live import Live
 app = typer.Typer(
@@ -137,8 +136,7 @@ def leave(
 ):
     """Generate a DA-31 leave request from natural language."""
     from src.forms.extractor import extract
-    from src.forms.renderer import render
-
+    from src.forms.fillable_renderer import render_fillable
     banner()
 
     if request is None:
@@ -165,14 +163,37 @@ def leave(
         table.add_row(field, str(value))
     console.print(table)
 
-    if not typer.confirm("\nLooks correct? Generate the form?", default=True):
+    # === Regulation-aware compliance check ===
+    from src.forms.validator import validate
+
+    with console.status("[cyan]Checking compliance against Army regulations...", spinner="dots"):
+        verdict = validate(leave_request)
+
+    verdict_styles = {
+        "APPROVE": ("green", "✓ APPROVED"),
+        "WARN": ("yellow", "⚠ APPROVED WITH WARNING"),
+        "DENY": ("red", "✗ DENIED BY REGULATION"),
+    }
+    color, label = verdict_styles[verdict.verdict]
+    body = f"[bold]{label}[/bold]\n\n{verdict.reason}"
+    if verdict.citation:
+        body += f"\n\n[dim]Citation:[/dim] {verdict.citation}"
+    console.print(Panel(body, title="Compliance check", border_style=color))
+
+    if verdict.verdict == "DENY":
+        console.print("[red]This request cannot be submitted as-is.[/red]")
+        if not typer.confirm("Override and submit anyway? (will flag in outbox)", default=False):
+            console.print("[yellow]Request blocked.[/yellow]")
+            raise typer.Exit()
+
+    elif not typer.confirm("\nGenerate the form?", default=True):
         console.print("[yellow]Aborted.[/yellow]")
         raise typer.Exit()
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_path = ROOT / "output" / f"DA31_{timestamp}.pdf"
-    with console.status("[cyan]Rendering DA-31 PDF...", spinner="dots"):
-        render(leave_request.to_form_dict(), output_path)
+    with console.status("[cyan]Filling DA-31 (fillable PDF)...", spinner="dots"):
+        render_fillable(leave_request.to_form_dict(), output_path)
 
     # Queue in outbox
     from src.outbox import db
